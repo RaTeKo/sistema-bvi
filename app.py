@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 
-# --- CONFIGURAÇÃO E SEGREDOS ---
+
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -20,7 +20,6 @@ except Exception as e:
     st.error("⚠️ Verifica os Secrets no Streamlit Cloud!")
     st.stop()
 
-# --- FUNÇÕES DE AJUDA ---
 
 def limpar_texto(txt):
     return ''.join(c for c in unicodedata.normalize('NFD', txt) 
@@ -31,7 +30,7 @@ def apenas_numeros(txt):
 
 def formatar_sexo(texto):
     if not texto or not texto.strip(): 
-        return "Não Aplicavel"
+        return "Não Aplicável"
     
     t_upper = texto.strip().upper()
     idade = ''.join(filter(str.isdigit, t_upper))
@@ -72,7 +71,7 @@ def criar_excel_oficial(df):
             worksheet.set_column(col_num, col_num, 22)
     return output.getvalue()
 
-# --- INTERFACE PRINCIPAL ---
+
 st.set_page_config(page_title="BVI - Ocorrências", page_icon="logo.png", layout="centered")
 
 if st.session_state.get("autenticado", False):
@@ -81,13 +80,12 @@ if st.session_state.get("autenticado", False):
         st.session_state.autenticado = False
         st.rerun()
 
-
 col1, col2 = st.columns([1, 5])
 with col1:
     st.image("logo.png", width=90)
 with col2:
     st.title("Registo de Ocorrências")
-    
+
 t1, t2 = st.tabs(["📝 Novo Registo", "🔐 Gestão"])
 
 with t1:
@@ -112,22 +110,25 @@ with t1:
                 nomes_completos = [mapa_nomes[n] for n in ops]
                 data_agora = datetime.now().strftime("%d/%m/%Y %H:%M")
                 
-                # --- LÓGICA DE DETEÇÃO DE TIPO DE OCORRÊNCIA ---
                 nr_upper = nr.upper()
+                esconder_sexo = False
+                
                 if "CODU" in nr_upper:
                     nome_campo_nr = "📕 CODU Nº"
-                elif "CDO'S" in nr_upper or "CSRTTM" in nr_upper or "cdo's" in nr_upper:
+                elif "CDO'S" in nr_upper or "CSRTTM" in nr_upper:
                     nome_campo_nr = "📕 CSRTTM Nº"
+                    esconder_sexo = True 
                 else:
                     nome_campo_nr = "📕 OCORRÊNCIA Nº"
                 
                 numero_limpo = apenas_numeros(nr)
+                valor_sexo = formatar_sexo(sex)
                 
                 nova_linha = {
                     "numero": numero_limpo, 
                     "hora": formatar_hora(hr), 
                     "motivo": mot.title(),
-                    "sexo": formatar_sexo(sex),
+                    "sexo": valor_sexo,
                     "localidade": loc.title(), 
                     "morada": mor.title(),
                     "meios": ", ".join(meios), 
@@ -137,7 +138,9 @@ with t1:
                 }
                 
                 try:
-                    supabase.table("ocorrencias").insert(nova_linha).execute()
+                    
+                    supabase.table("ocorrências").insert(nova_linha).execute()
+                    
                     
                     dados_discord = nova_linha.copy()
                     del dados_discord["data_envio"]
@@ -148,12 +151,19 @@ with t1:
                         "meios": "🚒 MEIOS", "operacionais": "👨🏻‍🚒 OPERACIONAIS", "outros": "🚨 OUTROS MEIOS"
                     }
                     
-                    msg_discord = "\n".join([f"**{mapa_labels[k]}** ▶️ {v}" for k, v in dados_discord.items()])
+                    linhas_msg = []
+                    for k, v in dados_discord.items():
+                        
+                        if k == "sexo" and esconder_sexo and v == "Não Aplicável":
+                            continue
+                        linhas_msg.append(f"**{mapa_labels[k]}** ▶️ {v}")
+                    
+                    msg_discord = "\n".join(linhas_msg)
                     requests.post(DISCORD_WEBHOOK_URL, json={"content": msg_discord})
                     
                     st.success(f"✅ {nome_campo_nr.replace('📕 ', '')} {numero_limpo} guardado!")
                 except Exception as e:
-                    st.error(f"❌ Erro: {e}")
+                    st.error(f"❌ Erro ao guardar: {e}")
             else:
                 st.error("⚠️ Preencha os campos obrigatórios!")
 
@@ -167,7 +177,7 @@ with t2:
                 st.rerun()
     else:
         try:
-            res = supabase.table("ocorrencias").select("*").order("data_envio", desc=True).execute()
+            res = supabase.table("ocorrências").select("*").order("data_envio", desc=True).execute()
             if res.data:
                 df = pd.DataFrame(res.data)
                 mapa_colunas = {
@@ -188,5 +198,3 @@ with t2:
             st.error(f"❌ Erro ao carregar: {e}")
 
 st.markdown(f'<div style="text-align: center; color: gray; font-size: 0.8rem; margin-top: 50px;">{datetime.now().year} © BVI</div>', unsafe_allow_html=True)
-
-
