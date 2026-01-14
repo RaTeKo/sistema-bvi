@@ -22,7 +22,7 @@ except Exception as e:
 
 # --- NOME DA TABELA ---
 # Ajustado para "ocorrências" conforme a sugestão do erro do Supabase
-NOME_TABELA = "ocorrências"
+NOME_TABELA = "ocorrencias"
 
 # Funções Auxiliares
 def limpar_texto(txt):
